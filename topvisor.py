@@ -12,9 +12,9 @@ class Topvisor:
 
         print('Authorizing Topvisor')
         self.base_path = os.path.dirname(os.path.abspath(__file__))
+        self._set_dates()
         self._initializing_dicts()
         self._get_credentials()
-        self._set_dates()
         self._make_directories_for_json()
 
         self.headers = {'Content-type': 'application/json', 'User-Id': self.user, 'Authorization': f'bearer {self.key}'}
@@ -23,6 +23,7 @@ class Topvisor:
                       "tag",
                       "folder_tag"
                       ]
+        self.sheet_names = {type: f'{type}_summary' for type in self.types}
         self.work_book_id = '10bQ3R1LvWd3QQW55ALaNOtdxLrZWdrz57Uhrhnu1bRw'
         self.service_file_path = 'pysheets-347309-9629095400b4.json'
 
@@ -41,6 +42,7 @@ class Topvisor:
                 }
         self.metrics = ["avg", "visibility"]
         self.tops = ['all', '1_3', '1_10', '11_30']
+
         return self.se_region_index, self.tags, self.folders_dict, self.metrics
 
     def _set_dates(self):
@@ -187,33 +189,39 @@ class Topvisor:
 
         :type search_engine: object
         """
-        print(f'Requesting {type} summary chart for {search_engine}: {folder} : {tag}')
+        print(f'{search_engine}: {type} request for summary {folder}_{tag}')
         self.response = requests.post(f'{self.server}{self.summary_chart_api_url}', headers=self.headers, data=json.dumps(self.payload))
 
         return self.response
 
     def _save_response_to_json(self, search_engine, type, folder='', tag=''):
 
-        if type == 'base':
-            print(f'Saving /topvisor/charts/base/{self.date_today}-{search_engine}.json')
-            with open(f'{self.base_path}/charts/base/{self.date_today}-{search_engine}.json', 'w', encoding='utf-8') as file:
-                json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
-                file.close()
-        elif type == 'folder':
-            print(f'Saving /topvisor/charts/folder/{self.date_today}-{search_engine}-{folder}.json')
-            with open(f'{self.base_path}/charts/folder/{self.date_today}-{search_engine}-{folder}.json', 'w', encoding='utf-8') as file:
-                json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
-                file.close()
-        elif type == 'tag':
-            print(f'Saving /topvisor/charts/tag/{self.date_today}-{search_engine}-{tag}.json')
-            with open(f'{self.base_path}/charts/tag/{self.date_today}-{search_engine}-{tag}.json', 'w', encoding='utf-8') as file:
-                json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
-                file.close()
-        elif type == 'folder_tag':
-            print(f'Saving /topvisor/charts/folder_tag/{self.date_today}-{search_engine}-{tag}.json')
-            with open(f'{self.base_path}/charts/folder_tag/{self.date_today}-{search_engine}-{folder}-{tag}.json', 'w', encoding='utf-8') as file:
-                json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
-                file.close()
+        print(f'Saving {search_engine}: {type} request for summary {folder}_{tag}')
+        self.json_file_names = {
+                                'base': f'{self.base_path}/charts/base/{self.date_today}-{search_engine}.json',
+                                'folder' : f'{self.base_path}/charts/folder/{self.date_today}-{search_engine}-{folder}.json',
+                                'tag': f'{self.base_path}/charts/tag/{self.date_today}-{search_engine}-{tag}.json',
+                                'folder_tag': f'{self.base_path}/charts/folder_tag/{self.date_today}-{search_engine}-{folder}-{tag}.json'
+                                                }
+
+        with open(self.json_file_names[type], 'w', encoding='utf-8') as file:
+            json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
+            file.close()
+
+        # if type == 'base':
+        #
+        # elif type == 'folder':
+        #     with open(f'{self.base_path}/charts/folder/{self.date_today}-{search_engine}-{folder}.json', 'w', encoding='utf-8') as file:
+        #         json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
+        #         file.close()
+        # elif type == 'tag':
+        #     with open(f'{self.base_path}/charts/tag/{self.date_today}-{search_engine}-{tag}.json', 'w', encoding='utf-8') as file:
+        #         json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
+        #         file.close()
+        # elif type == 'folder_tag':
+        #     with open(f'{self.base_path}/charts/folder_tag/{self.date_today}-{search_engine}-{folder}-{tag}.json', 'w', encoding='utf-8') as file:
+        #         json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
+        #         file.close()
 
     def run(self):
 
@@ -343,8 +351,8 @@ class Topvisor:
 
     def _push_dataframe(self, type):
 
-        sheet_names = {"base": "summary", "folder": "folders", "tag": "tag_sheet", "folder_tag": "folder_tag"}
-        sheet_name = sheet_names[type]
+
+        sheet_name = self.sheet_names[type]
 
         pusher = GoogleSheetWriter(self.service_file_path, self.work_book_id, sheet_name)
 
