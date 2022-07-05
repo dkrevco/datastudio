@@ -88,14 +88,75 @@ class Topvisor:
             json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
             file.close()
 
-    def get_folders_summary_chart(self):
+    def push_folders_summary_charts(self):
+
+        self._get_folders_summary_charts()
+        self._initialize_folder_frame()
+        self._reformat_response_for_folders_summary_dataframe()
+
+    def _get_folders_summary_charts(self):
+
+        self.responses_folders_dict = {}
 
         for se in self.se_region_index.keys():
             for folder in self.folders_dict.keys():
-                self._payload_generator(search_engine=se, type='base', folder=folder)
-                self._get_response(type='folder', search_engine=se, folder=folder)
+                self._payload_generator(type='folder', search_engine=se,  folder=folder)
+                get = self._get_response(type='folder', search_engine=se, folder=folder)
+                self.responses_folders_dict[f'{se}_{folder}'] = get.json()
                 self._save_response_to_json(type='folder', search_engine=se, folder=folder)
 
+        return self.responses_folders_dict
+
+    def _initialize_folder_frame(self):
+        self.folder_frame = {
+            "id": [], 'date': [], 'yandex_iphone_avg': [], 'yandex_iphone_visibility': [],
+            'yandex_ipad_avg': [], 'yandex_ipad_visibility': [], 'yandex_watch_avg': [],
+            'yandex_watch_visibility': [],  'yandex_mac_avg': [], 'yandex_mac_visibility': [],
+            'google_iphone_avg': [], 'google_iphone_visibility': [],
+            'google_ipad_avg': [], 'google_ipad_visibility': [], 'google_watch_avg': [],
+            'google_watch_visibility': [], 'google_mac_avg': [], 'google_mac_visibility': []
+        }
+
+        return self.folder_frame
+
+    def _reformat_response_for_folders_summary_dataframe(self):
+
+        for se in self.se_region_index.keys():
+            for folder in self.folders_dict.keys():
+                fr = pd.read_json((f'topvisor/charts/{self.date_today}-{se}-{folder}-summary-chart.json')
+                for x in range(len(fr[f'{se}_{folder}']["result"]["dates"])):
+                    # date =
+
+                # for metric in self.metrics
+        # yandex_iphone = pd.read_json(f'topvisor/charts/{self.date_today}-yandex-iphone-summary-chart.json')
+        # yandex_ipad = pd.read_json(f'topvisor/charts/{self.date_today}-yandex-ipad-summary-chart.json')
+        # yandex_watch = pd.read_json(f'topvisor/charts/{self.date_today}-yandex-watch-summary-chart.json')
+        # yandex_mac = pd.read_json(f'topvisor/charts/{self.date_today}-yandex-mac-summary-chart.json')
+        # google_iphone = pd.read_json(f'topvisor/charts/{self.date_today}-google-iphone-summary-chart.json')
+        # google_ipad = pd.read_json(f'topvisor/charts/{self.date_today}-google-ipad-summary-chart.json')
+        # google_watch = pd.read_json(f'topvisor/charts/{self.date_today}-google-watch-summary-chart.json')
+        # google_mac = pd.read_json(f'topvisor/charts/{self.date_today}-google-mac-summary-chart.json')
+
+        for x in range(len(google_iphone["result"]["dates"])):
+
+            date = google_iphone["result"]["dates"][x]
+            self.summary_frame['id'].append(x)
+            self.summary_frame['date'].append(date)
+
+            for metric in self.metrics:
+                for folder in self.folders_dict.keys():
+                    yandex_value = yandex["result"]["seriesByProjectsId"][str(self.project_id)][metric][x]
+                yandex_value = str(yandex_value).replace('.', ',')
+                self.summary_frame[f'yandex_{metric}'].append(yandex_value)
+
+                google_value = google["result"]["seriesByProjectsId"][str(self.project_id)][metric][x]
+                google_value = str(google_value).replace('.', ',')
+                self.summary_frame[f'google_{metric}'].append(google_value)
+
+
+
+        # self.table = pd.DataFrame.from_dict(self.summary_frame, orient='index').transpose()
+        return self.table
 
     def get_summary_chart(self):
 
@@ -141,7 +202,7 @@ class Topvisor:
                 "region_index": self.se_region_index[search_engine],
                 "date1": self.dates[0],
                 "date2": self.dates[-1],
-                "type_range": 1,
+                "type_range": 0,
                 "show_visibility": True,
                 "show_avg": True,
                 "show_tops": True,
@@ -237,46 +298,7 @@ class Topvisor:
 
         return self.table
 
-    def _reformat_response_for_folders_summary_dataframe(self):
 
-        self.summary_frame = {
-            "id": [], 'date': [], 'yandex_iphone_avg': [], 'yandex_iphone_visibility': [],
-            'yandex_ipad_avg': [], 'yandex_ipad_visibility': [], 'yandex_watch_avg': [],
-            'yandex_watch_visibility': [],  'yandex_mac_avg': [], 'yandex_mac_visibility': [],
-            'google_iphone_avg': [], 'google_iphone_visibility': [],
-            'google_ipad_avg': [], 'google_ipad_visibility': [], 'google_watch_avg': [],
-            'google_watch_visibility': [], 'google_mac_avg': [], 'google_mac_visibility': []
-        }
-        yandex_iphone = pd.read_json(f'topvisor/charts/{self.date_today}-yandex-iphone-summary-chart.json')
-        google = pd.read_json(f'topvisor/charts/{self.date_today}-google-summary-chart.json')
-
-
-
-        # for x in range(len(google["result"]["dates"])):
-        #
-        #     date = google["result"]["dates"][x]
-        #     self.summary_frame['id'].append(x)
-        #     self.summary_frame['date'].append(date)
-        #
-        #     for metric in self.metrics:
-        #         yandex_value = yandex["result"]["seriesByProjectsId"][str(self.project_id)][metric][x]
-        #         yandex_value = str(yandex_value).replace('.', ',')
-        #         self.summary_frame[f'yandex_{metric}'].append(yandex_value)
-        #
-        #         google_value = google["result"]["seriesByProjectsId"][str(self.project_id)][metric][x]
-        #         google_value = str(google_value).replace('.', ',')
-        #         self.summary_frame[f'google_{metric}'].append(google_value)
-        #
-        #     for top in self.tops:
-        #         yandex_value = yandex["result"]["seriesByProjectsId"][str(self.project_id)]["tops"][top][x]
-        #         self.summary_frame[f'yandex_{top}'].append(yandex_value)
-        #
-        #         google_value = google["result"]["seriesByProjectsId"][str(self.project_id)]["tops"][top][x]
-        #         self.summary_frame[f'google_{top}'].append(google_value)
-        #
-        #
-        # self.table = pd.DataFrame.from_dict(self.summary_frame, orient='index').transpose()
-        return self.table
 
 
 def main():
