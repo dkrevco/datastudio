@@ -22,14 +22,22 @@ class Topvisor:
         self.service_file_path = 'pysheets-347309-9629095400b4.json'
 
         self.summary_chart_api_url = '/v2/json/get/positions_2/summary_chart'
+        self.keywords_api_url = '/v2/json/get/keywords_2/folders'
 
     def _initializing_dicts(self):
 
         self.se_region_index = {"yandex": 3, "google": 6}
         self.tags = {"commercial": 2}
-        self.folders = {"iphone": 12}
+        self.folders_dict = {
+                  "iphone": 861539,
+                  "ipad": 861590,
+                  "mac": 861565,
+                  "watch": 861584
+                }
         self.metrics = ["avg", "visibility"]
-        return self.se_region_index, self.tags, self.folders, self.metrics
+        self.tops = ['all', '1_3', '1_10', '11_30']
+        return self.se_region_index, self.tags, self.folders_dict, self.metrics
+
 
     def _set_dates(self):
 
@@ -67,33 +75,54 @@ class Topvisor:
         if not os.path.exists('topvisor/charts/'):
             os.mkdir('topvisor/charts/')
 
+    def get_groups_id(self):
+
+        print(f'Requesting group folders id chart for')
+
+        payload = {
+            "project_id": self.project_id
+        }
+        self.response = requests.post(f'{self.server}{self.keywords_api_url}', headers=self.headers, data=json.dumps(payload))
+
+        with open(f'topvisor/group_id.json', 'w', encoding='utf-8') as file:
+            json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
+            file.close()
+
+    def get_folders_summary_chart(self):
+
+        for se in self.se_region_index.keys():
+            for folder in self.folders_dict.keys():
+                self._payload_generator(search_engine=se, type='base', folder=folder)
+                self._get_response(type='folder', search_engine=se, folder=folder)
+                self._save_response_to_json(type='folder', search_engine=se, folder=folder)
+
 
     def get_summary_chart(self):
 
-        for se, se_index in self.se_region_index.items():
-
-            self._get_response('base', se)
-            self._save_response_to_json()
+        for se in self.se_region_index.keys():
+            self._payload_generator(search_engine=se, type='base')
+            self._get_response(search_engine=se, type='base')
+            self._save_response_to_json(se, 'base')
 
         df = self._reformat_response_for_summary_dataframe()
+
+
         sheet_name = 'summary_test'
         sender = GoogleSheetWriter(self.service_file_path, self.work_book_id, sheet_name)
 
         sender.run(df)
 
-    def _get_response(self, type, search_engine, tag=0, folder=0):
+    def _get_response(self, search_engine, type, tag=0, folder=''):
+        """
 
+        :type search_engine: object
+        """
         print(f'Requesting {type} summary chart for {search_engine}: {folder} : {tag}')
-        self._payload_generator(type, search_engine)
         self.response = requests.post(f'{self.server}{self.summary_chart_api_url}', headers=self.headers, data=json.dumps(self.payload))
-        self.se = search_engine
-        self.folder = folder
-        self.type = type
-        self.tag = tag
 
-        return self.response, self.se, self.folder, self.type, self.tag
+        return self.response
 
-    def _payload_generator(self, type, search_engine, tag=0, folder=0):
+    def _payload_generator(self, type, search_engine, tag=0, folder=''):
 
         if type == 'base':
             self.payload = {
@@ -106,14 +135,13 @@ class Topvisor:
                 "show_avg": True,
                 "show_tops": True
             }
-            return self.payload
         elif type == 'folder':
-            self.payload =  {
-                "project_id": 	self.project_id,
+            self.payload = {
+                "project_id": self.project_id,
                 "region_index": self.se_region_index[search_engine],
-                "date1" : self.dates[0],
-                "date2" : self.dates[-1],
-                "type_range": 0,
+                "date1": self.dates[0],
+                "date2": self.dates[-1],
+                "type_range": 1,
                 "show_visibility": True,
                 "show_avg": True,
                 "show_tops": True,
@@ -122,13 +150,12 @@ class Topvisor:
                         "name": "group_folder_id",
                         "operator": "EQUALS",
                         "values": [
-                            str(folder)
+                            str(self.folders_dict[folder])
                         ]
                     }
                 ],
                 "group_folder_id_depth": "1"
             }
-            return self.payload
         elif type == 'tag':
             self.payload = {
                 "project_id": self.project_id,
@@ -150,23 +177,24 @@ class Topvisor:
                 ],
                 "group_folder_id_depth": "1"
             }
-            return self.payload
 
-    def _save_response_to_json(self):
+        return self.payload
+
+    def _save_response_to_json(self, type, search_engine, tag=0, folder=''):
 
         if type == 'base':
-            print(f'Saving /topvisor/charts/{self.date_today}-{self.se}-summary-chart.json')
-            with open(f'topvisor/charts/{self.date_today}-{self.se}-summary-chart.json', 'w', encoding='utf-8') as file:
+            print(f'Saving /topvisor/charts/{self.date_today}-{search_engine}-summary-chart.json')
+            with open(f'topvisor/charts/{self.date_today}-{search_engine}-summary-chart.json', 'w', encoding='utf-8') as file:
                 json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
                 file.close()
         elif type == 'folder':
-            print(f'Saving /topvisor/charts/{self.date_today}-{self.se}-{self.folder}-summary-chart.json')
-            with open(f'topvisor/charts/{self.date_today}-{self.se}-summary-chart.json', 'w', encoding='utf-8') as file:
+            print(f'Saving /topvisor/charts/{self.date_today}-{search_engine}-{folder}-summary-chart.json')
+            with open(f'topvisor/charts/{self.date_today}-{search_engine}-{folder}-summary-chart.json', 'w', encoding='utf-8') as file:
                 json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
                 file.close()
         elif type == 'tag':
-            print(f'Saving /topvisor/charts/{self.date_today}-{self.se}-{self.tag}-summary-chart.json')
-            with open(f'topvisor/charts/{self.date_today}-{self.se}-summary-chart.json', 'w', encoding='utf-8') as file:
+            print(f'Saving /topvisor/charts/{self.date_today}-{search_engine}-{tag}-summary-chart.json')
+            with open(f'topvisor/charts/{self.date_today}-{search_engine}-summary-chart.json', 'w', encoding='utf-8') as file:
                 json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
                 file.close()
 
@@ -175,38 +203,87 @@ class Topvisor:
         yandex = pd.read_json(f'topvisor/charts/{self.date_today}-yandex-summary-chart.json')
         google = pd.read_json(f'topvisor/charts/{self.date_today}-google-summary-chart.json')
 
-        self.summary_frame = {}
+        self.summary_frame = {
+            "id": [], 'date': [], 'yandex_avg': [], 'google_avg': [], 'yandex_visibility': [],
+            'google_visibility': [], 'yandex_all': [], 'yandex_1_3': [], 'yandex_1_10': [],
+            'yandex_11_30': [], 'google_all': [], 'google_1_3': [], 'google_1_10': [],
+            'google_11_30': []
+        }
 
         for x in range(len(google["result"]["dates"])):
 
             date = google["result"]["dates"][x]
-
-            self.summary_frame[x] = [{"date": date}]
+            self.summary_frame['id'].append(x)
+            self.summary_frame['date'].append(date)
 
             for metric in self.metrics:
-                    yandex_metric = {}
-                    yandex_value = yandex["result"]["seriesByProjectsId"][str(self.project_id)][metric][x]
-                    yandex_metric[f'yandex_{metric}'] = str(yandex_value).replace('.', ',')
-                    self.summary_frame[x].append(yandex_metric)
+                yandex_value = yandex["result"]["seriesByProjectsId"][str(self.project_id)][metric][x]
+                yandex_value = str(yandex_value).replace('.', ',')
+                self.summary_frame[f'yandex_{metric}'].append(yandex_value)
 
-                    google_metric = {}
-                    google_value = google["result"]["seriesByProjectsId"][str(self.project_id)][metric][x]
-                    google_metric[f'google_{metric}'] = str(google_value).replace('.', ',')
-                    self.summary_frame[x].append(google_metric)
+                google_value = google["result"]["seriesByProjectsId"][str(self.project_id)][metric][x]
+                google_value = str(google_value).replace('.', ',')
+                self.summary_frame[f'google_{metric}'].append(google_value)
 
-        # self.table = json.dumps(self.summary_frame, indent=4, ensure_ascii=False)
-        # self.table = pd.read_json(self.table, orient='index')
-        self.table = pd.DataFrame.from_dict(self.summary_frame, orient='index')
+            for top in self.tops:
+                yandex_value = yandex["result"]["seriesByProjectsId"][str(self.project_id)]["tops"][top][x]
+                self.summary_frame[f'yandex_{top}'].append(yandex_value)
 
-        print(self.table)
+                google_value = google["result"]["seriesByProjectsId"][str(self.project_id)]["tops"][top][x]
+                self.summary_frame[f'google_{top}'].append(google_value)
+
+
+        self.table = pd.DataFrame.from_dict(self.summary_frame, orient='index').transpose()
+
+        return self.table
+
+    def _reformat_response_for_folders_summary_dataframe(self):
+
+        self.summary_frame = {
+            "id": [], 'date': [], 'yandex_iphone_avg': [], 'yandex_iphone_visibility': [],
+            'yandex_ipad_avg': [], 'yandex_ipad_visibility': [], 'yandex_watch_avg': [],
+            'yandex_watch_visibility': [],  'yandex_mac_avg': [], 'yandex_mac_visibility': [],
+            'google_iphone_avg': [], 'google_iphone_visibility': [],
+            'google_ipad_avg': [], 'google_ipad_visibility': [], 'google_watch_avg': [],
+            'google_watch_visibility': [], 'google_mac_avg': [], 'google_mac_visibility': []
+        }
+        yandex_iphone = pd.read_json(f'topvisor/charts/{self.date_today}-yandex-iphone-summary-chart.json')
+        google = pd.read_json(f'topvisor/charts/{self.date_today}-google-summary-chart.json')
+
+
+
+        # for x in range(len(google["result"]["dates"])):
+        #
+        #     date = google["result"]["dates"][x]
+        #     self.summary_frame['id'].append(x)
+        #     self.summary_frame['date'].append(date)
+        #
+        #     for metric in self.metrics:
+        #         yandex_value = yandex["result"]["seriesByProjectsId"][str(self.project_id)][metric][x]
+        #         yandex_value = str(yandex_value).replace('.', ',')
+        #         self.summary_frame[f'yandex_{metric}'].append(yandex_value)
+        #
+        #         google_value = google["result"]["seriesByProjectsId"][str(self.project_id)][metric][x]
+        #         google_value = str(google_value).replace('.', ',')
+        #         self.summary_frame[f'google_{metric}'].append(google_value)
+        #
+        #     for top in self.tops:
+        #         yandex_value = yandex["result"]["seriesByProjectsId"][str(self.project_id)]["tops"][top][x]
+        #         self.summary_frame[f'yandex_{top}'].append(yandex_value)
+        #
+        #         google_value = google["result"]["seriesByProjectsId"][str(self.project_id)]["tops"][top][x]
+        #         self.summary_frame[f'google_{top}'].append(google_value)
+        #
+        #
+        # self.table = pd.DataFrame.from_dict(self.summary_frame, orient='index').transpose()
         return self.table
 
 
 def main():
 
     tv = Topvisor()
-    tv.get_summary_chart()
-
+    # tv.get_summary_chart()
+    tv.get_folders_summary_chart()
 
 
 if __name__ == '__main__':
