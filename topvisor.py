@@ -16,12 +16,15 @@ class Topvisor:
         self._get_credentials()
         self._set_dates()
         self._make_directories_for_json()
-        self._initializing_response_frames()
+        # self._initializing_response_frames()
 
 
         self.headers = {'Content-type': 'application/json', 'User-Id': self.user, 'Authorization': f'bearer {self.key}'}
         self.server = 'https://api.topvisor.com'
-
+        self.types = ["base", "folder",
+                      "tag",
+                      "folder_tag"
+                      ]
         self.work_book_id = '10bQ3R1LvWd3QQW55ALaNOtdxLrZWdrz57Uhrhnu1bRw'
         self.service_file_path = 'pysheets-347309-9629095400b4.json'
 
@@ -42,14 +45,18 @@ class Topvisor:
         self.tops = ['all', '1_3', '1_10', '11_30']
         return self.se_region_index, self.tags, self.folders_dict, self.metrics
 
-    def _initializing_response_frames(self):
-
-        self.base_dataframe = {
-         }
-        self.folder_dataframe = {
-        }
-
-        return self.base_dataframe, self.folder_dataframe
+    # def _initializing_response_frames(self):
+    #
+    #     self.base_dataframe = {
+    #      }
+    #     self.folder_dataframe = {
+    #     }
+    #
+    #     self.dataframe = {
+    #
+    #     }
+    #
+    #     return self.base_dataframe, self.folder_dataframe
 
     def _set_dates(self):
 
@@ -90,6 +97,8 @@ class Topvisor:
             os.mkdir(f'{self.base_path}/charts/folder/')
         if not os.path.exists(f'{self.base_path}/charts/tag/'):
             os.mkdir(f'{self.base_path}/charts/tag/')
+        if not os.path.exists(f'{self.base_path}/charts/folder_tag/'):
+            os.mkdir(f'{self.base_path}/charts/folder_tag/')
 
     def get_groups_id(self):
 
@@ -153,13 +162,39 @@ class Topvisor:
                         "name": "tags",
                         "operator": "IN",
                         "values": [
-                            str(tag)
+                            str(self.tags[tag])
                         ]
-                    }
+                    },
                 ],
                 "group_folder_id_depth": "1"
             }
-
+        elif type == 'folder_tag':
+            self.payload = {
+                "project_id": self.project_id,
+                "region_index": self.se_region_index[search_engine],
+                "date1": self.dates[0],
+                "date2": self.dates[-1],
+                "type_range": 0,
+                "show_visibility": True,
+                "show_avg": True,
+                "show_tops": True,
+                "filters": [{
+                        "name": "group_folder_id",
+                        "operator": "EQUALS",
+                        "values": [
+                            str(self.folders_dict[folder])
+                        ]
+                    },
+                    {
+                        "name": "tags",
+                        "operator": "IN",
+                        "values": [
+                            str(self.tags[tag])
+                        ]
+                    },
+                ],
+                "group_folder_id_depth": "1"
+            }
         return self.payload
 
     def _get_response(self, search_engine, type, folder='', tag=''):
@@ -186,93 +221,156 @@ class Topvisor:
                 file.close()
         elif type == 'tag':
             print(f'Saving /topvisor/charts/tag/{self.date_today}-{search_engine}-{tag}.json')
-            with open(f'{self.base_path}/charts/tag/{self.date_today}-{search_engine}.json', 'w', encoding='utf-8') as file:
+            with open(f'{self.base_path}/charts/tag/{self.date_today}-{search_engine}-{tag}.json', 'w', encoding='utf-8') as file:
+                json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
+                file.close()
+        elif type == 'folder_tag':
+            print(f'Saving /topvisor/charts/folder_tag/{self.date_today}-{search_engine}-{tag}.json')
+            with open(f'{self.base_path}/charts/folder_tag/{self.date_today}-{search_engine}-{folder}-{tag}.json', 'w', encoding='utf-8') as file:
                 json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
                 file.close()
 
-    def _produce_base_charts(self):
+    def run(self):
 
-        self.base_charts = {}
-        type = 'base'
-        for search_engine in self.se_region_index:
-            self._payload_generator(search_engine, type)
-            response = self._get_response(search_engine, type)
-            self.base_charts[f'{search_engine}'] = response.json()
-            self._save_response_to_json(search_engine, type)
+        for type in self.types:
+            self._produce_charts(type)
+            self._reformat_charts(type)
+            self._push_dataframe(type)
 
+    def _produce_charts(self, type):
 
-        return self.base_charts
+        self.charts = {}
 
-    def _reformat_base_charts(self):
-
-        self._produce_base_charts()
-
-        self.base_dataframe['date'] = self.base_charts['google']["result"]["dates"]
-
-        for search_engine in self.se_region_index:
-
-            for metric in self.metrics:
-
-                self.base_dataframe[f'{search_engine}_{metric}'] = self.base_charts[f'{search_engine}']["result"]["seriesByProjectsId"][self.project_id][metric]
-                for x, item in enumerate(self.base_dataframe[f'{search_engine}_{metric}']):
-                    self.base_dataframe[f'{search_engine}_{metric}'][x] = str(item).replace(".", ",")
-
-            for top in self.tops:
-
-                self.base_dataframe[f'{search_engine}_{top}'] = self.base_charts[f'{search_engine}']["result"]["seriesByProjectsId"][self.project_id]["tops"][top]
-
-        self.base_dataframe = pd.DataFrame(self.base_dataframe)
-        return self.base_dataframe
-
-    def push_base_dataframe(self):
-
-        df = self._reformat_base_charts()
-        sheet_name = 'summary_test_2'
-        pusher = GoogleSheetWriter(self.service_file_path, self.work_book_id, sheet_name)
-
-        pusher.run(df)
-
-    def _produce_folder_charts(self):
-
-        self.folder_charts = {}
-        type = 'folder'
-
-        for search_engine in self.se_region_index:
-            for folder in self.folders_dict:
+        if type == 'base':
+            for search_engine in self.se_region_index:
                 self._payload_generator(search_engine, type)
                 response = self._get_response(search_engine, type)
-                self.folder_charts[f'{search_engine}_{folder}'] = response.json()
+                self.charts[f'{search_engine}'] = response.json()
                 self._save_response_to_json(search_engine, type)
+        if type == 'folder':
+            for search_engine in self.se_region_index:
+                for folder in self.folders_dict:
+                    self._payload_generator(search_engine, type, folder)
+                    response = self._get_response(search_engine, type, folder)
+                    self.charts[f'{search_engine}_{folder}'] = response.json()
+                    self._save_response_to_json(search_engine, type, folder)
+        if type == 'tag':
+            for search_engine in self.se_region_index:
+                for tag in self.tags:
+                    self._payload_generator(search_engine, type, tag=tag)
+                    response = self._get_response(search_engine, type, tag=tag)
+                    self.charts[f'{search_engine}_{tag}'] = response.json()
+                    self._save_response_to_json(search_engine, type, tag=tag)
+        if type == 'folder_tag':
+            for search_engine in self.se_region_index:
+                for folder in self.folders_dict:
+                    for tag in self.tags:
+                        self._payload_generator(search_engine, type, folder, tag)
+                        response = self._get_response(search_engine, type, folder, tag)
+                        self.charts[f'{search_engine}_{folder}_{tag}'] = response.json()
+                        self._save_response_to_json(search_engine, type, folder, tag)
 
-        return self.folder_charts
+        return self.charts
 
-    def _reformat_folder_charts(self):
+    def _reformat_charts(self, type):
 
-        self._produce_folder_charts()
+        self.dataframe = {}
 
-        self.folder_dataframe['date'] = self.base_charts['google']["result"]["dates"]
+        if type == 'base':
 
-        for search_engine in self.se_region_index:
-            for folder in self.folders_dict:
+            for search_engine in self.se_region_index:
+
+                self.dataframe['date'] = self.charts['google']["result"]["dates"]
 
                 for metric in self.metrics:
-                    self.base_dataframe[f'{search_engine}_{folder}_{metric}'] = self.base_charts[f'{search_engine}']["result"]["seriesByProjectsId"][self.project_id][metric]
-                    for x, item in enumerate(self.base_dataframe[f'{search_engine}_{metric}']):
-                        self.base_dataframe[f'{search_engine}_{folder}_{metric}'][x] = str(item).replace(".", ",")
+
+                    self.dataframe[f'{search_engine}_{metric}'] = self.charts[f'{search_engine}']["result"]["seriesByProjectsId"][self.project_id][metric]
+                    for x, item in enumerate(self.dataframe[f'{search_engine}_{metric}']):
+                        self.dataframe[f'{search_engine}_{metric}'][x] = str(item).replace(".", ",")
 
                 for top in self.tops:
 
-                    self.base_dataframe[f'{search_engine}_{top}'] = self.base_charts[f'{search_engine}']["result"]["seriesByProjectsId"][self.project_id]["tops"][top]
+                    self.dataframe[f'{search_engine}_{top}'] = self.charts[f'{search_engine}']["result"]["seriesByProjectsId"][self.project_id]["tops"][top]
 
-        self.folder_dataframe = pd.DataFrame(self.base_dataframe)
+        elif type == 'folder':
 
-        return self.base_dataframe
+            for search_engine in self.se_region_index:
+
+                for folder in self.folders_dict:
+
+                    self.dataframe['date'] = self.charts[f'{search_engine}_{folder}']["result"]["dates"]
+
+                    for metric in self.metrics:
+                        self.dataframe[f'{search_engine}_{folder}_{metric}'] = \
+                        self.charts[f'{search_engine}_{folder}']["result"]["seriesByProjectsId"][
+                            self.project_id][metric]
+                        for x, item in enumerate(self.dataframe[f'{search_engine}_{folder}_{metric}']):
+                            self.dataframe[f'{search_engine}_{folder}_{metric}'][x] = str(item).replace(".", ",")
+
+                    for top in self.tops:
+                        self.dataframe[f'{search_engine}_{folder}_{top}'] = \
+                        self.charts[f'{search_engine}_{folder}']["result"]["seriesByProjectsId"][
+                            self.project_id]["tops"][top]
+
+        elif type == 'tag':
+
+            for search_engine in self.se_region_index:
+
+                for tag in self.tags:
+
+                    self.dataframe['date'] = self.charts[f'{search_engine}_{tag}']["result"]["dates"]
+
+                    for metric in self.metrics:
+                        self.dataframe[f'{search_engine}_{tag}_{metric}'] = \
+                        self.charts[f'{search_engine}_{tag}']["result"]["seriesByProjectsId"][
+                            self.project_id][metric]
+                        for x, item in enumerate(self.dataframe[f'{search_engine}_{tag}_{metric}']):
+                            self.dataframe[f'{search_engine}_{tag}_{metric}'][x] = str(item).replace(".", ",")
+
+                    for top in self.tops:
+                        self.dataframe[f'{search_engine}_{tag}_{top}'] = \
+                        self.charts[f'{search_engine}_{tag}']["result"]["seriesByProjectsId"][
+                            self.project_id]["tops"][top]
+
+        elif type == 'folder_tag':
+
+            for search_engine in self.se_region_index:
+                for folder in self.folders_dict:
+
+                    for tag in self.tags:
+
+                        self.dataframe['date'] = self.charts[f'{search_engine}_{folder}_{tag}']["result"]["dates"]
+
+                        for metric in self.metrics:
+                            self.dataframe[f'{search_engine}_{folder}_{tag}_{metric}'] = \
+                            self.charts[f'{search_engine}_{folder}_{tag}']["result"]["seriesByProjectsId"][
+                                self.project_id][metric]
+                            for x, item in enumerate(self.dataframe[f'{search_engine}_{folder}_{tag}_{metric}']):
+                                self.dataframe[f'{search_engine}_{folder}_{tag}_{metric}'][x] = str(item).replace(".", ",")
+
+                        for top in self.tops:
+                            self.dataframe[f'{search_engine}_{folder}_{tag}_{top}'] = \
+                            self.charts[f'{search_engine}_{folder}_{tag}']["result"]["seriesByProjectsId"][
+                                self.project_id]["tops"][top]
+
+        self.dataframe = pd.DataFrame(self.dataframe)
+        return self.dataframe
+
+    def _push_dataframe(self, type):
+
+        sheet_names = {"base": "summary", "folder": "folders", "tag": "tag_sheet", "folder_tag": "folder_tag"}
+        sheet_name = sheet_names[type]
+
+        pusher = GoogleSheetWriter(self.service_file_path, self.work_book_id, sheet_name)
+
+        pusher.run(self.dataframe)
+
+
 
 def main():
 
     tv = Topvisor()
-    tv.push_base_dataframe()
-    # tv.get_folders_summary_chart()
+    tv.run()
 
 
 if __name__ == '__main__':

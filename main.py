@@ -4,7 +4,7 @@ def main():
 
     tv = Topvisor()
 
-    tv.push_base_dataframe()
+    tv.run()
 
 if __name__ == '__main__':
 
