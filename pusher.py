@@ -54,7 +54,7 @@ class GoogleSheetWriter:
         """
         print(f'Writing {self.sheet_name} in workbook')
 
-        self.worksheet.set_dataframe(df, (1, 1), encoding='utf-8', fit=True)
+        self.worksheet.set_dataframe(df, (1, 1), encoding='utf-8')
         self.worksheet.frozen_rows = 1
 
     def run(self, df):
