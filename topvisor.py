@@ -16,8 +16,6 @@ class Topvisor:
         self._get_credentials()
         self._set_dates()
         self._make_directories_for_json()
-        # self._initializing_response_frames()
-
 
         self.headers = {'Content-type': 'application/json', 'User-Id': self.user, 'Authorization': f'bearer {self.key}'}
         self.server = 'https://api.topvisor.com'
@@ -44,19 +42,6 @@ class Topvisor:
         self.metrics = ["avg", "visibility"]
         self.tops = ['all', '1_3', '1_10', '11_30']
         return self.se_region_index, self.tags, self.folders_dict, self.metrics
-
-    # def _initializing_response_frames(self):
-    #
-    #     self.base_dataframe = {
-    #      }
-    #     self.folder_dataframe = {
-    #     }
-    #
-    #     self.dataframe = {
-    #
-    #     }
-    #
-    #     return self.base_dataframe, self.folder_dataframe
 
     def _set_dates(self):
 
