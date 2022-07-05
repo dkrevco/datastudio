@@ -1,4 +1,3 @@
-import pygsheets
 import json
 import requests
 import os
@@ -10,7 +9,7 @@ class Topvisor:
 
     def __init__(self):
 
-        print('Authorizing Topvisor')
+        print('Initiaging Class Topvisor')
         self.base_path = os.path.dirname(os.path.abspath(__file__))
         self._set_dates()
         self._initializing_dicts()
@@ -208,20 +207,6 @@ class Topvisor:
             json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
             file.close()
 
-        # if type == 'base':
-        #
-        # elif type == 'folder':
-        #     with open(f'{self.base_path}/charts/folder/{self.date_today}-{search_engine}-{folder}.json', 'w', encoding='utf-8') as file:
-        #         json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
-        #         file.close()
-        # elif type == 'tag':
-        #     with open(f'{self.base_path}/charts/tag/{self.date_today}-{search_engine}-{tag}.json', 'w', encoding='utf-8') as file:
-        #         json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
-        #         file.close()
-        # elif type == 'folder_tag':
-        #     with open(f'{self.base_path}/charts/folder_tag/{self.date_today}-{search_engine}-{folder}-{tag}.json', 'w', encoding='utf-8') as file:
-        #         json.dump(self.response.json(), file, indent=4, ensure_ascii=False)
-        #         file.close()
 
     def run(self):
 
